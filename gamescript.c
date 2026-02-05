@@ -7,13 +7,11 @@
 const int SCR_WIDTH = 1200;
 const int SCR_HEIGHT = 900;
 
-// Map dimensions
 #define MAP_WIDTH 10
 #define MAP_HEIGHT 10
 
 typedef enum { DIR_NORTH=0, DIR_EAST=1, DIR_SOUTH=2, DIR_WEST=3 } Direction;
 
-// Scene identifiers
 typedef enum { 
     SCENE_MENU_MAIN = 0,
     SCENE_LEVEL_1 = 1,
@@ -23,9 +21,10 @@ typedef enum {
     SCENE_MENU_PAUSE = 5
 } SceneType;
 
-// Global Assets
-// Simplified to 1 texture per level for now based on your file list
-Texture2D levelTextures[5]; // Indices 1-4 used
+Texture2D levelTextures[5]; 
+
+// --- FIX 2: Global Flag for Clean Exit ---
+bool gameShouldClose = false;
 
 // --------------------------------------------------------------------------------------
 // 2. DATA STRUCTURES
@@ -111,7 +110,6 @@ void InitMenuMain(void) {
 void UpdateMenuMain(Scene* self) { }
 
 void DrawMenuMain(Scene* self) {
-    // No texture provided for menu yet, so we use a solid color
     ClearBackground(DARKBLUE);
     
     DrawText("MAIN MENU", 450, 100, 60, WHITE);
@@ -126,7 +124,9 @@ void DrawMenuMain(Scene* self) {
     if (GuiButton(btnL2)) ChangeScene(SCENE_LEVEL_2);
     if (GuiButton(btnL3)) ChangeScene(SCENE_LEVEL_3);
     if (GuiButton(btnL4)) ChangeScene(SCENE_LEVEL_4);
-    if (GuiButton(btnExit)) CloseWindow();
+    
+    // --- FIX 2: Set flag instead of closing immediately ---
+    if (GuiButton(btnExit)) gameShouldClose = true;
 }
 
 // --- GAME LEVELS ---
@@ -141,6 +141,7 @@ void InitLevel(int levelNum, bool resetState) {
 }
 
 void UpdateLevel(Scene* self) {
+    // Esc logic now works because we disabled the default key in Main
     if (IsKeyPressed(KEY_ESCAPE)) {
         storedStates[activeScene.type] = self->player;
         ChangeScene(SCENE_MENU_PAUSE);
@@ -164,15 +165,11 @@ void UpdateLevel(Scene* self) {
 void DrawLevel(Scene* self) {
     int lvlIdx = activeScene.type;
     
-    // 1. Draw the background image for this level
-    // We scale the texture to fit the screen just in case the image isn't exactly 1200x900
-    // sourceRec is the full image, destRec is the full screen
     Texture2D tex = levelTextures[lvlIdx];
     Rectangle sourceRec = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
     Rectangle destRec = { 0.0f, 0.0f, (float)SCR_WIDTH, (float)SCR_HEIGHT };
     DrawTexturePro(tex, sourceRec, destRec, (Vector2){0,0}, 0.0f, WHITE);
 
-    // 2. Draw Text (Aligned Top-Middle)
     char coordText[100];
     char* dirStrs[] = {"North", "East", "South", "West"};
     sprintf(coordText, "Lvl: %d | X: %d Y: %d | Facing: %s", 
@@ -181,9 +178,8 @@ void DrawLevel(Scene* self) {
     int fontSize = 40;
     int textWidth = MeasureText(coordText, fontSize);
     int drawX = (SCR_WIDTH / 2) - (textWidth / 2);
-    int drawY = 20; // Top margin
+    int drawY = 20;
 
-    // Draw background box for text
     DrawRectangle(drawX - 20, drawY - 5, textWidth + 40, fontSize + 10, Fade(BLACK, 0.6f));
     DrawText(coordText, drawX, drawY, fontSize, RAYWHITE);
 }
@@ -201,7 +197,7 @@ void UpdateMenuPause(Scene* self) {
 }
 
 void DrawMenuPause(Scene* self) {
-    DrawLevel(self); // Draw game behind menu
+    DrawLevel(self); 
     DrawRectangle(0,0, SCR_WIDTH, SCR_HEIGHT, Fade(BLACK, 0.6f));
     
     DrawText("PAUSED", 500, 100, 60, RAYWHITE);
@@ -227,7 +223,9 @@ void DrawMenuPause(Scene* self) {
     if (GuiButton(btnOther1)) ChangeScene(levelIDs[0]);
     if (GuiButton(btnOther2)) ChangeScene(levelIDs[1]);
     if (GuiButton(btnOther3)) ChangeScene(levelIDs[2]);
-    if (GuiButton(btnExit)) CloseWindow();
+    
+    // --- FIX 2: Set flag instead of closing immediately ---
+    if (GuiButton(btnExit)) gameShouldClose = true;
 }
 
 // --------------------------------------------------------------------------------------
@@ -235,24 +233,25 @@ void DrawMenuPause(Scene* self) {
 // --------------------------------------------------------------------------------------
 int main(void) {
     InitWindow(SCR_WIDTH, SCR_HEIGHT, "First Person C Game");
+    
+    // --- FIX 1: Disable Raylib's default ESC behavior ---
+    SetExitKey(KEY_NULL); 
+
     SetTargetFPS(60);
 
     // --- LOAD ASSETS ---
-    // Loading the specific files you requested
     levelTextures[1] = LoadTexture("assets/bg_residence.png");
     levelTextures[2] = LoadTexture("assets/bg_copse.png");
     levelTextures[3] = LoadTexture("assets/bg_hospital.png");
     levelTextures[4] = LoadTexture("assets/bg_dungeon.png");
 
-    // Start game at main menu
     ChangeScene(SCENE_MENU_MAIN);
 
-    while (!WindowShouldClose()) {
+    // --- FIX 2: Check global flag in the main loop condition ---
+    while (!WindowShouldClose() && !gameShouldClose) {
         if (activeScene.Update) activeScene.Update(&activeScene);
 
         BeginDrawing();
-        // Clear background is technically not needed if drawing full screen texture, 
-        // but good for the Menu which has no texture.
         ClearBackground(BLACK); 
         
         if (activeScene.Draw) activeScene.Draw(&activeScene);
